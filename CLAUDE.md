@@ -5,6 +5,9 @@
 Work directly on `main`. Do not create feature branches, and do not open pull
 requests unless explicitly asked.
 
+Write commit messages in English. The upstream history and the in-code comments
+are in Spanish — do not match them.
+
 Remotes:
 
 - `fork` — `git@github.com:danielberndt/TamaPoke.git` — ours, push here
