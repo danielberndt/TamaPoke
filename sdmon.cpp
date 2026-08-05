@@ -125,6 +125,21 @@ bool sdBegin() {
   return sdReady;
 }
 
+// Anade una linea a /health.log. Existe para medir la autonomia real: por USB
+// la placa esta cargando (chg=1) y las cifras no valen, asi que la medida hay
+// que hacerla desenchufada, y entonces no hay monitor serie que escuche.
+// Se abre y se cierra en cada linea a proposito: la prueba termina con un corte
+// de corriente seco (bateria agotada), y lo que quedara en el buffer se perderia.
+// Son ~12 KB por cada 10 h de registro, asi que el fichero no molesta.
+bool sdLogLine(const char *line) {
+  if (!sdReady) return false;
+  File f = SD_MMC.open("/health.log", FILE_APPEND);
+  if (!f) return false;
+  f.println(line);
+  f.close();
+  return true;
+}
+
 bool SdMon::load(uint8_t dexNum, bool shiny) {
   unload();
   if (!sdReady) return false;
@@ -236,8 +251,12 @@ bool sdSerialCommand(const String &line) {
     sdDirty = (remaining == 0);
     Serial.println(remaining == 0 ? "DONE" : "ERR");
     return true;
-  } else if (line == "LS") {
-    File dir = SD_MMC.open("/mons");
+  } else if (line == "LS" || line.startsWith("LS ")) {
+    String path = line.length() > 3 ? line.substring(3) : String();
+    path.trim();
+    if (path.isEmpty()) path = "/mons";  // sin argumento: como siempre
+    if (!path.startsWith("/")) path = "/" + path;
+    File dir = SD_MMC.open(path);
     if (dir) {
       File e;
       while ((e = dir.openNextFile())) {
@@ -247,6 +266,23 @@ bool sdSerialCommand(const String &line) {
       dir.close();
     }
     Serial.println("DONE");
+    return true;
+  } else if (line.startsWith("CAT ")) {
+    // vuelca un fichero por serie: es como se recoge /health.log despues de una
+    // medida de autonomia sin tener que sacar la microSD de la carcasa
+    String path = line.substring(4);
+    path.trim();
+    if (!path.startsWith("/")) path = "/" + path;
+    File f = SD_MMC.open(path, FILE_READ);
+    if (!f) { Serial.println("ERR"); return true; }
+    uint8_t buf[256];
+    int n;
+    while ((n = f.read(buf, sizeof(buf))) > 0) {
+      Serial.write(buf, n);
+      Serial.flush();  // con setTxTimeoutMs(0) lo que no quepa se tira
+    }
+    f.close();
+    Serial.println("\nDONE");
     return true;
   }
   return false;

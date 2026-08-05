@@ -216,6 +216,13 @@ void setup() {
   }
   pet.syncClock(e);
 
+  // marca de arranque en el log de la SD: separa una medida de la siguiente
+  // (el fichero se acumula entre encendidos) y delata un reinicio inesperado
+  // en mitad de una prueba de autonomia
+  char boot[64];
+  snprintf(boot, sizeof(boot), "BOOT fw=%s t=%lu", FW_VERSION, (unsigned long)e);
+  sdLogLine(boot);
+
   audioBegin();  // ES8311 + I2S + amplificador (suena un jingle de arranque)
 
   lastInteract = millis();
@@ -296,10 +303,16 @@ void loop() {
   static uint32_t lastHealth = 0;
   if (now - lastHealth > 300000) {
     lastHealth = now;
-    Serial.printf("HEALTH up=%lus heap=%u min=%u bat=%d%% mv=%d chg=%d usb=%d dim=%u off=%d\n",
-                  (unsigned long)(now / 1000), ESP.getFreeHeap(), ESP.getMinFreeHeap(),
-                  batPercent(), batMillivolts(), batCharging() ? 1 : 0, usbPresent() ? 1 : 0,
-                  dimStage, screenOff ? 1 : 0);
+    // t= (epoch del RTC) ademas de up=: al medir desenchufada la unica marca de
+    // tiempo fiable entre arranques es la del RTC
+    char line[160];
+    snprintf(line, sizeof(line),
+             "HEALTH t=%lu up=%lus heap=%u min=%u bat=%d%% mv=%d chg=%d usb=%d dim=%u off=%d",
+             (unsigned long)rtcEpoch(), (unsigned long)(now / 1000),
+             ESP.getFreeHeap(), ESP.getMinFreeHeap(), batPercent(), batMillivolts(),
+             batCharging() ? 1 : 0, usbPresent() ? 1 : 0, dimStage, screenOff ? 1 : 0);
+    Serial.println(line);
+    sdLogLine(line);
   }
 
   // 85 ms en juego/saco: margen seguro para que el redibujado no pise el envio

@@ -55,5 +55,6 @@ extern SdThumbs thumbs;
 
 bool sdBegin();                 // monta la SD (SDMMC 1-bit), true si hay tarjeta
 bool sdSerialCommand(const String &line);  // PUT/LS por USB; true si la maneja
+bool sdLogLine(const char *line);  // anade una linea a /health.log (para medir bateria)
 extern bool sdReady;
 extern bool sdDirty;  // true tras recibir archivos: recargar sprite
