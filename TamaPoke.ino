@@ -251,15 +251,26 @@ void loop() {
 
   // avisa con un sonido cuando el bicho pasa a estar listo para evolucionar
   // (incluye el caso de cumplir al despertar). canEvolveNow es false durmiendo.
-  static bool wasEvoReady = false;
+  // El flag es "ya avisado", no "ya estaba listo": si la condicion se cumple en
+  // horario nocturno el aviso NO se pierde, se aplaza hasta que acaba la franja
+  // (a diferencia del resto de sonidos ambient, que simplemente se descartan).
+  static bool evoAnnounced = false;
   bool evoReady = pet.wantEvolveButton();
-  if (evoReady && !wasEvoReady) sfxPlay(SFX_MEDAL);
-  wasEvoReady = evoReady;
+  if (!evoReady) {
+    evoAnnounced = false;
+  } else if (!evoAnnounced && !audioQuietHours()) {
+    evoAnnounced = true;
+    sfxPlay(SFX_MEDAL);
+  }
   // aviso sombrio cuando el bicho esta a punto de escaparse por abandono
-  static bool wasRunReady = false;
+  static bool runAnnounced = false;
   bool runReady = pet.canRunawayNow();
-  if (runReady && !wasRunReady) sfxPlay(SFX_DENY);
-  wasRunReady = runReady;
+  if (!runReady) {
+    runAnnounced = false;
+  } else if (!runAnnounced && !audioQuietHours()) {
+    runAnnounced = true;
+    sfxPlay(SFX_DENY);
+  }
 
   handleTouch();
   handleSerial();
@@ -419,6 +430,17 @@ void handleSerial() {
     Serial.println("DONE");
   } else if (line == "BEEP") {
     sfxPlay(SFX_HATCH);  // prueba de audio
+    Serial.println("DONE");
+  } else if (line == "QUIET") {
+    // prueba de la franja nocturna: dispara un aviso ambient (el mismo camino
+    // que el jingle de arranque o la subida de nivel) y dice si se ha callado.
+    // Tras un RTCSET puede tardar hasta 30 s en reflejarse: audioQuietHours()
+    // cachea la lectura del RTC.
+    uint32_t e = rtcEpoch();
+    bool q = audioQuietHours();
+    Serial.printf("hora=%u quiet=%d\n", e ? (unsigned)((e / 3600) % 24) : 99, q ? 1 : 0);
+    sfxPlayAmbient(SFX_HATCH);
+    Serial.println(q ? "silenciado" : "sonando");
     Serial.println("DONE");
   } else if (line == "ABANDON") {
     pet.dbgRunawayReady();  // fuerza el estado "lista para escaparse" (test del boton)

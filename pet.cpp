@@ -132,7 +132,7 @@ void Pet::tick() {
     return;
   }
 
-  if (ageMinutes % MINUTES_PER_LEVEL == 0) sfxPlay(SFX_LEVEL);  // subio de nivel (despierto)
+  if (ageMinutes % MINUTES_PER_LEVEL == 0) sfxPlayAmbient(SFX_LEVEL);  // subio de nivel (despierto)
 
   fullness = clamp100(fullness - 2);
   energy = clamp100(energy - 1);
@@ -304,7 +304,7 @@ void Pet::checkMedals() {
     for (uint16_t m = gained; m; m &= (m - 1)) totalMedals++;
     newMedal = gained;
     medalUntil = millis() + 4000;
-    if (!sleeping) sfxPlay(SFX_MEDAL);
+    if (!sleeping) sfxPlayAmbient(SFX_MEDAL);
     save();
   }
 }
@@ -394,7 +394,9 @@ void Pet::hatch() {
   nick[0] = 0;
   registerSpecies(speciesId);  // criado = registrado en la pokedex
   checkMedals();     // por si nace ya en forma final (legendario)
-  sfxPlay(SFX_HATCH);
+  // ambient: el huevo eclosiona solo a los 3 min (y tambien durante un apagado,
+  // ver syncClock), asi que puede caer de madrugada sin nadie delante
+  sfxPlayAmbient(SFX_HATCH);
   save();
 }
 

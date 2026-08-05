@@ -21,3 +21,9 @@ void audioBegin();          // init ES8311 + I2S + amplificador + tarea de audio
 void sfxPlay(uint8_t id);   // encola un efecto (no bloquea el loop)
 void audioSetEnabled(bool on);
 bool audioEnabled();
+
+// Avisos que NO ha provocado el usuario (arranque, subir de nivel, medalla,
+// listo para evolucionar...): identico a sfxPlay salvo que se calla dentro de
+// la franja nocturna. Los sonidos de toque siguen usando sfxPlay.
+void sfxPlayAmbient(uint8_t id);
+bool audioQuietHours();     // true dentro de la franja nocturna silenciosa

@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "pin_config.h"
+#include "rtcbat.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <ESP_I2S.h>
@@ -157,7 +158,10 @@ void audioBegin() {
   gReady = true;
   gQ = xQueueCreate(8, sizeof(uint8_t));
   xTaskCreatePinnedToCore(audioTask, "audio", 4096, nullptr, 1, nullptr, 0);
-  sfxPlay(SFX_HATCH);  // jingle de arranque (confirma que suena)
+  // jingle de arranque (confirma que suena). Ambient: un reinicio de madrugada
+  // no tiene por que despertar a nadie. Requiere rtcBegin() antes que esta
+  // funcion, cosa que setup() ya hace.
+  sfxPlayAmbient(SFX_HATCH);
 }
 
 void sfxPlay(uint8_t id) {
@@ -172,3 +176,50 @@ void audioSetEnabled(bool on) {
   p.end();
 }
 bool audioEnabled() { return gOn; }
+
+// ---------------------------------------------------------------------------
+// Franja nocturna silenciosa
+// ---------------------------------------------------------------------------
+// Nada que no hayas provocado tu suena entre QUIET_FROM y QUIET_TO, aunque se
+// te olvide dejar la mascota dormida. Incluye el jingle de arranque: un
+// reinicio inesperado de madrugada (bajon de bateria, cuelgue) despertaba a
+// quien tuviera la placa en la mesilla. Tocar la pantalla si suena: a esas
+// horas, si estas jugando es porque quieres.
+//
+// La hora sale del RTC (epoch en hora local: la pantalla de ajuste escribe la
+// hora local tal cual, ver applyClock). Sin reloj valido NO se silencia nada:
+// preferimos sonar de mas a dejar la placa muda por un RTC en blanco.
+#define QUIET_FROM 1  // hora local a la que empieza el silencio
+#define QUIET_TO   9  // hora local a la que termina
+
+bool audioQuietHours() {
+  // El resultado se cachea 30 s. El loop consulta esto en cada vuelta mientras
+  // hay un aviso pendiente, y rtcEpoch() es una lectura I2C del bus que
+  // comparten el tactil y el codec: sondearlo a la velocidad del loop lo
+  // saturaria. Medio minuto de desfase en el borde de la franja no lo nota
+  // nadie. Solo se llama desde el loop/setup, nunca desde la tarea de audio,
+  // asi que los estaticos no necesitan proteccion.
+  static uint32_t lastCheck = 0;
+  static bool checked = false;
+  static bool quiet = false;
+
+  uint32_t now = millis();
+  if (!checked || now - lastCheck >= 30000) {
+    checked = true;
+    lastCheck = now;
+    uint32_t e = rtcEpoch();
+    if (e == 0) {
+      quiet = false;  // sin reloj no silenciamos nada
+    } else {
+      uint8_t h = (e / 3600) % 24;
+      // el operador cambia si la franja cruza medianoche (p.ej. 23 -> 8)
+      quiet = (QUIET_FROM < QUIET_TO) ? (h >= QUIET_FROM && h < QUIET_TO)
+                                      : (h >= QUIET_FROM || h < QUIET_TO);
+    }
+  }
+  return quiet;
+}
+
+void sfxPlayAmbient(uint8_t id) {
+  if (!audioQuietHours()) sfxPlay(id);
+}
