@@ -10,8 +10,9 @@ are in Spanish — do not match them.
 
 Remotes:
 
-- `fork` — `git@github.com:danielberndt/TamaPoke.git` — ours, push here
-- `origin` — `https://github.com/socquique/TamaPoke.git` — upstream, never push
+- `origin` — `git@github.com:danielberndt/TamaPoke.git` — our fork; `main`
+  tracks `origin/main`, so a bare `git push` goes here
+- `upstream` — `https://github.com/socquique/TamaPoke.git` — never push
 
 ## Parallel agents
 
