@@ -287,18 +287,30 @@ void loop() {
     if (e) pet.lastSeenEpoch = e;
   }
 
-  // latido de salud cada 5 min (para el soak test; se descarta si no hay monitor)
+  // latido de salud cada 5 min (para el soak test; se descarta si no hay monitor).
+  // Lleva tambien el estado de la bateria: con la placa a bateria, este log es
+  // la unica forma de medir el consumo real (el AXP2101 no expone un ADC de
+  // corriente de descarga). Registrando %/mV junto al estado de pantalla se
+  // saca la autonomia de cada modo: dejarlo correr hasta que se apague y
+  // dividir el porcentaje caido entre las horas de cada tramo.
   static uint32_t lastHealth = 0;
   if (now - lastHealth > 300000) {
     lastHealth = now;
-    Serial.printf("HEALTH up=%lus heap=%u min=%u\n", (unsigned long)(now / 1000),
-                  ESP.getFreeHeap(), ESP.getMinFreeHeap());
+    Serial.printf("HEALTH up=%lus heap=%u min=%u bat=%d%% mv=%d chg=%d usb=%d dim=%u off=%d\n",
+                  (unsigned long)(now / 1000), ESP.getFreeHeap(), ESP.getMinFreeHeap(),
+                  batPercent(), batMillivolts(), batCharging() ? 1 : 0, usbPresent() ? 1 : 0,
+                  dimStage, screenOff ? 1 : 0);
   }
 
   // 85 ms en juego/saco: margen seguro para que el redibujado no pise el envio
   // DMA del frame anterior (a 40-65 ms solapaba y causaba flashes negros; con
-  // sprites grandes el dibujo tarda mas, asi que se deja colchon)
-  if (now - lastRender >= (uint32_t)((gameOpen || sackOpen) ? 85 : 100)) {
+  // sprites grandes el dibujo tarda mas, asi que se deja colchon).
+  // Con la pantalla apagada no se dibuja: a brillo 0 no se ve nada, pero el
+  // redibujado + el flush DMA del framebuffer de 466x466 seguian corriendo a
+  // 10 fps y eran el mayor consumo evitable de la placa. Cada render repinta la
+  // escena entera (drawScene cubre los 466x466), asi que no queda nada a medias;
+  // y como lastRender se queda congelado, al despertar el frame sale en el acto.
+  if (!screenOff && now - lastRender >= (uint32_t)((gameOpen || sackOpen) ? 85 : 100)) {
     lastRender = now;
     render();
   }

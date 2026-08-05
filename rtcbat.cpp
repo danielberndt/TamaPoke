@@ -43,6 +43,9 @@ void rtcSetEpoch(uint32_t e) {
 bool batBegin() {
   pmuOk = pmu.begin(Wire, AXP2101_SLAVE_ADDRESS, IIC_SDA, IIC_SCL);
   if (!pmuOk) Serial.println("AXP2101 no detectado");
+  // el ADC de VBAT no viene activado de fabrica; sin esto getBattVoltage()
+  // devuelve siempre 0 (el porcentaje sale del fuel gauge, que va aparte)
+  else pmu.enableBattVoltageMeasure();
   return pmuOk;
 }
 
@@ -62,20 +65,23 @@ void pmuEnablePanel() {
 // el estado de energia (I2C) se cachea ~2 s: leerlo en cada frame del loop
 // metia trafico I2C inutil y podia oscilar (parpadeo de brillo)
 static uint32_t powerCacheT = 0;
-static int cachedPct = -1;
+static int cachedPct = -1, cachedMv = 0;
 static bool cachedCharging = false, cachedUsb = true;
 
 static void refreshPower() {
   uint32_t now = millis();
   if (powerCacheT && now - powerCacheT < 2000) return;
   powerCacheT = now ? now : 1;
-  if (!pmuOk) { cachedPct = -1; cachedCharging = false; cachedUsb = true; return; }
-  cachedPct = pmu.isBatteryConnect() ? pmu.getBatteryPercent() : -1;
+  if (!pmuOk) { cachedPct = -1; cachedMv = 0; cachedCharging = false; cachedUsb = true; return; }
+  bool bat = pmu.isBatteryConnect();
+  cachedPct = bat ? pmu.getBatteryPercent() : -1;
+  cachedMv = bat ? pmu.getBattVoltage() : 0;
   cachedCharging = pmu.isCharging();
   cachedUsb = pmu.isVbusIn();
 }
 
 int batPercent() { refreshPower(); return cachedPct; }
+int batMillivolts() { refreshPower(); return cachedMv; }
 bool batCharging() { refreshPower(); return cachedCharging; }
 bool usbPresent() { refreshPower(); return cachedUsb; }
 
